@@ -5,7 +5,6 @@ use warnings;
 use Net::SSLeay;
 use Socket;
 use IO::Socket::SSL;
-use IO::Handle;
 do './testlib.pl' || do './t/testlib.pl' || die "no testlib";
 
 if ( ! IO::Socket::SSL->can_server_sni() ) {
@@ -54,15 +53,9 @@ my @tests = qw(
     www13.other.local
 );
 
-my $NEXT = 'next';
-pipe(my $rd, my $wr) || die $!;
-$wr->autoflush(1);
-$rd->autoflush(1);
-
 defined( my $pid = fork() ) || die $!;
 if ( $pid == 0 ) {
     close($server);
-    close($wr);
 
     for my $host (@tests) {
 	my $client = IO::Socket::SSL->new(
@@ -82,15 +75,10 @@ if ( $pid == 0 ) {
 	    print "not ok # client ssl connect $host - $SSL_ERROR\n";
 	    print "ok # skip connect failed\n";
 	}
-	# Wait for parent to say we can go to next round or exit the loop
-	chomp(my $next = <$rd>);
-	warn "Got '$next' instead of '$NEXT'" unless $next eq $NEXT;
     }
-    close($rd);
     exit;
 }
 
-close($rd);
 for my $host (@tests) {
     my $csock = $server->accept;
     if ($csock) {
@@ -102,8 +90,5 @@ for my $host (@tests) {
 	print "not ok # server accept - $SSL_ERROR\n";
 	print "ok # skip accept failed\n";
     }
-    # Say child he can move to next round
-    print $wr "$NEXT\n";
 }
-close($wr);
 wait;
